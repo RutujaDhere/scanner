@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no">
+    <title>Document1</title>
+</head>
+<body>
+    <div id="interactive" class="viewport" style="width: 320px;height: 320px;border: 1px skyblue solid;object-fit:fill"></div>
+    <canvas style="display: none;" id="canvas" width="320" height="320"></canvas>
+    <br><span id="alertspan"></span>
+    <br><span id="resultspan">扫描结果：</span>
+</body>
+<script src="quagga.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+<script type="text/javascript">
+        //显示视频流
+        Quagga.init({
+		      inputStream: {
+		        name: "Live",
+		        type: "LiveStream",
+		        target: document.getElementById("interactive"),
+		        constraints: {
+		          	facingMode: "environment", // or "user" for front camera
+		        },
+		      },
+		      decoder: {
+		        readers: ["code_128_reader", "ean_reader","ean_8_reader"],
+		        debug: {
+                        showCanvas: true,
+                        showPatches: true,
+                        showFoundPatches: true,
+                        showSkeleton: true,
+                        showLabels: true,
+                        showPatchLabels: true,
+                        showRemainingPatchLabels: true,
+                        boxFromPatches: {
+                            showTransformed: true,
+                            showTransformedBox: true,
+                            showBB: true
+                        }
+                    }
+		      },
+		      numOfWorkers: 4,
+		      
+		    }, function(err) {
+		      if (err) {
+		        console.error(err);
+		        return;
+		      }
+		      Quagga.start();
+		      
+		    });
+
+
+            Quagga.onProcessed(function (result) {
+                var drawingCtx = Quagga.canvas.ctx.overlay,
+                drawingCanvas = Quagga.canvas.dom.overlay;
+
+                if (result) {
+                    if (result.boxes) {
+                        drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
+                        result.boxes.filter(function (box) {
+                            return box !== result.box;
+                        }).forEach(function (box) {
+                            Quagga.ImageDebug.drawPath(box, { x: 0, y: 1 }, drawingCtx, { color: "green", lineWidth: 2 });
+                        });
+                    }
+
+                    if (result.box) {
+                        Quagga.ImageDebug.drawPath(result.box, { x: 0, y: 1 }, drawingCtx, { color: "#00F", lineWidth: 2 });
+                    }
+
+                    if (result.codeResult && result.codeResult.code) {
+                        Quagga.ImageDebug.drawPath(result.line, { x: 'x', y: 'y' }, drawingCtx, { color: 'red', lineWidth: 3 });
+                    }
+                }
+            });
+        
+        //通过画布截取视频画面
+        var canvas = document.getElementById("canvas"); 
+        var context = canvas.getContext("2d"); 
+        
+        var timer;
+        function startPat(){  
+            timer = window.setInterval(function(){//防止调用过快  
+                if(context)  
+                {  
+                    var video = document.querySelector("video"); 
+                    context.drawImage(video, 0, 0, 320, 320);       
+                    decode(canvas.toDataURL("image/jpeg"));   
+                }  
+            },1000);  
+        }   
+
+        //解析二维码，使用quagga
+        function decode(src){
+            var config = {
+                inputStream: {
+                size: 800,
+                singleChannel: false
+                },
+                locator: {
+                    patchSize: "medium",
+                    halfSample: true
+                },
+                decoder: {
+                    readers: ["code_128_reader", "ean_reader", "ean_8_reader", "code_39_reader", "code_39_vin_reader", "codabar_reader", "upc_reader", "upc_e_reader", "i2of5_reader"]
+                    },
+                locate: true,
+                src: src
+            }
+
+            Quagga.decodeSingle(config, function(result) {
+                console.log(result)
+                if(!result){
+                    document.getElementById("alertspan").innerHTML ="提示：图片中没有条形码！";
+                    return false;
+                }
+                //识别结果
+                if(result.codeResult){
+                    alert(result.codeResult.code)
+                    //window.clearInterval(timer);
+                    document.getElementById("alertspan").innerHTML ="提示：扫描成功";
+                    document.getElementById("resultspan").innerHTML =document.getElementById("resultspan").innerHTML + result.codeResult.code+"\n";
+                }else{
+                    document.getElementById("alertspan").innerHTML ="提示：未识别到图片中的条形码！";
+                }
+            });
+        }
+
+        //开始执行
+        startPat();
+</script>
+</html>
